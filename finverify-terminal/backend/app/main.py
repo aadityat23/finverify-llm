@@ -60,14 +60,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "https://*.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,7 +72,13 @@ app.add_middleware(
 
 HF_MODEL = "aadi2026/finverify-lora"
 HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-HF_TOKEN = os.getenv("HF_TOKEN", "")
+_raw_token = os.getenv("HF_TOKEN", None)
+HF_TOKEN: str | None = _raw_token if _raw_token else None
+LLM_AVAILABLE: bool = HF_TOKEN is not None
+
+logger.info("HF_TOKEN %s — LLM mode: %s",
+            "detected" if LLM_AVAILABLE else "NOT SET",
+            "full" if LLM_AVAILABLE else "dvl-only")
 
 
 async def call_hf_inference(question: str) -> str:
@@ -113,9 +112,18 @@ async def call_hf_inference(question: str) -> str:
 # DVL Routes
 # ---------------------------------------------------------------------------
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query")
 async def query_endpoint(req: QueryRequest):
     """Full pipeline: classify -> LLM -> parse -> DVL -> response."""
+
+    # --- If no HF token, return graceful offline response ---------------
+    if not LLM_AVAILABLE:
+        return {
+            "error": "LLM offline",
+            "mode": "dvl_only",
+            "message": "DVL verification available. LLM inference requires API token.",
+        }
+
     mode = classify_query(req.question)
 
     # Advisory queries — skip DVL entirely
@@ -172,9 +180,22 @@ async def verify_endpoint(req: VerifyRequest):
     return resp
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health")
 async def health():
-    return HealthResponse()
+    """Health check — reports DVL and LLM availability."""
+    if LLM_AVAILABLE:
+        return {
+            "status": "ok",
+            "dvl": "online",
+            "llm": "online",
+            "model": HF_MODEL,
+        }
+    return {
+        "status": "ok",
+        "dvl": "online",
+        "llm": "offline",
+        "model": "dvl-only-mode",
+    }
 
 
 @app.get("/sample-queries", response_model=list[SampleQuery])

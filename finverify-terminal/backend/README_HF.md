@@ -1,29 +1,37 @@
 ---
-title: FinVerify Terminal API
+title: FinVerify API
 emoji: 📊
 colorFrom: green
 colorTo: black
 sdk: docker
 pinned: false
+app_port: 7860
 ---
 
 # FinVerify Terminal API
 
 FastAPI backend for the FinVerify Terminal — a Bloomberg-dark financial LLM verification system with a Deterministic Verification Layer (DVL) engine.
 
+## Modes
+
+| Mode | HF_TOKEN | DVL | LLM |
+|------|----------|-----|-----|
+| **DVL-only** | ❌ Not set | ✅ Online | ❌ Offline |
+| **Full** | ✅ Set | ✅ Online | ✅ Online |
+
 ## Routes
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/query` | LLM inference + DVL verification |
-| POST | `/verify` | DVL-only verification (no LLM call) |
-| GET | `/health` | Health check |
-| GET | `/sample-queries` | Sample questions from the paper |
-| GET | `/market/quotes` | Live stock quotes via yfinance |
-| GET | `/market/indices` | S&P 500, NASDAQ, VIX index data |
-| GET | `/market/verified-metrics` | DVL-verified financial metrics |
-| GET | `/market/all-metrics` | All 5 metrics for a symbol |
-| WS | `/ws/market` | Real-time market data stream (5s) |
+| Method | Path | Description | Requires Token |
+|--------|------|-------------|----------------|
+| POST | `/query` | LLM inference + DVL verification | ✅ Yes |
+| POST | `/verify` | DVL-only verification (no LLM call) | ❌ No |
+| GET | `/health` | Health check | ❌ No |
+| GET | `/sample-queries` | Sample questions from the paper | ❌ No |
+| GET | `/market/quotes` | Live stock quotes via yfinance | ❌ No |
+| GET | `/market/indices` | S&P 500, NASDAQ, VIX index data | ❌ No |
+| GET | `/market/verified-metrics` | DVL-verified financial metrics | ❌ No |
+| GET | `/market/all-metrics` | All 5 metrics for a symbol | ❌ No |
+| WS | `/ws/market` | Real-time market data stream (5s) | ❌ No |
 
 ## DVL Engine
 
