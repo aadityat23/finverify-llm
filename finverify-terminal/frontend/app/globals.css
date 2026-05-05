@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── JetBrains Mono ─── */
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@fontsource/jetbrains-mono/700.css";
+
+/* ─── Base ─── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: #0a0a0a;
+  color: #e0e0e0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+/* ─── Selection ─── */
+::selection { background: rgba(0,255,136,0.18); color: #00ff88; }
+
+/* ─── Terminal text ─── */
+.terminal-text {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ─── Panel ─── */
+.panel {
+  background: #111111;
+  border: 1px solid #1e1e1e;
+  border-radius: 4px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid #1e1e1e;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.panel-header .label { font-weight: 600; }
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #00ff88;
+  display: inline-block;
+}
+.status-dot.amber { background: #fbbf24; }
+.status-dot.red { background: #f87171; }
+
+/* ─── Trust badges ─── */
+.trust-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace;
+}
+.trust-high   { background: rgba(0,255,136,0.08); color: #00ff88; border: 1px solid rgba(0,255,136,0.2); }
+.trust-medium { background: rgba(251,191,36,0.08); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+.trust-low    { background: rgba(248,113,113,0.08); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+
+/* ─── Glow effects ─── */
+.glow-green  { box-shadow: 0 0 20px rgba(0,255,136,0.12); }
+.glow-amber  { box-shadow: 0 0 20px rgba(251,191,36,0.12); }
+.glow-red    { box-shadow: 0 0 20px rgba(248,113,113,0.12); }
+
+/* ─── Scanline overlay ─── */
+.scanline::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+  );
+  z-index: 1;
+}
+
+/* ─── Stagger animation helper ─── */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 150ms; }
+.stagger-3 { animation-delay: 300ms; }
+.stagger-4 { animation-delay: 450ms; }
+.stagger-5 { animation-delay: 600ms; }
+
+/* ─── Counter animation ─── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.count-animate {
+  animation: countUp 0.6s ease-out forwards;
+}
+
+/* ─── Ticker marquee scroll ─── */
+@keyframes tickerScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-scroll {
+  animation: tickerScroll 45s linear infinite;
+}
+.ticker-scroll:hover {
+  animation-play-state: paused;
+}
+
+/* ─── Market mode utilities ─── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Metric card hover glow */
+.metric-card {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.metric-card:hover {
+  box-shadow: 0 0 24px rgba(0, 255, 136, 0.06);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Pulse dot for live indicators */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-pulse {
+  animation: livePulse 2s ease-in-out infinite;
+}
