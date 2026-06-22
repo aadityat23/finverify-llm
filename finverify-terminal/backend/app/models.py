@@ -55,3 +55,47 @@ class SampleQuery(BaseModel):
     question: str
     actual: Optional[float] = None
     category: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# V1 Standalone API
+# ---------------------------------------------------------------------------
+
+class V1VerifyRequest(BaseModel):
+    question: str = Field(..., description="Financial question (for DVL keyword detection)")
+    raw_value: float = Field(..., description="Raw numerical value to verify")
+    model_source: Optional[str] = Field(None, description="Source model identifier (optional, for logging)")
+
+
+class V1VerifyResponse(BaseModel):
+    question: str
+    raw_value: float
+    verified_value: float
+    correction_applied: Optional[str] = None
+    trust_score: str  # HIGH | MEDIUM | LOW
+    trust_color: str  # #00ff88 | #fbbf24 | #f87171
+    delta_pct: float
+    dvl_version: str = "1.0.0"
+    timestamp: str
+
+
+# ---------------------------------------------------------------------------
+# Query History (Session 12A)
+# ---------------------------------------------------------------------------
+
+class QueryRequestWithUser(BaseModel):
+    question: str = Field(..., description="Financial question to ask the LLM")
+    context: Optional[str] = Field(None, description="Optional additional context")
+    user_id: Optional[str] = Field(None, description="Clerk user ID (optional, for history persistence)")
+
+
+class HistoryEntry(BaseModel):
+    id: Optional[str] = None
+    user_id: str
+    question: str
+    raw_value: Optional[float] = None
+    verified_value: Optional[float] = None
+    trust: str = "HIGH"
+    display_value: Optional[str] = None
+    correction_log: list = []
+    timestamp: Optional[str] = None

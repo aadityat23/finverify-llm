@@ -194,17 +194,20 @@ def full_verify(
                 value = corrected
                 break
         else:
-            # Heuristic: only if value is clearly extreme
-            corrected = value * k
-            if 0.001 < abs(corrected) < 1e9:
-                if abs(value) < 0.001 or abs(value) > 1e9:
-                    correction_log.append({
-                        "rule": f"magnitude_x{k}",
-                        "before": value,
-                        "after": corrected,
-                    })
-                    value = corrected
-                    break
+            # Heuristic: only if value is clearly extreme AND it's a ratio question.
+            # For absolute financial values (revenue, net income, assets),
+            # large numbers (>1e9) are expected and should NOT be corrected.
+            if is_ratio:
+                corrected = value * k
+                if 0.001 < abs(corrected) < 1e9:
+                    if abs(value) < 0.001 or abs(value) > 1e9:
+                        correction_log.append({
+                            "rule": f"magnitude_x{k}",
+                            "before": value,
+                            "after": corrected,
+                        })
+                        value = corrected
+                        break
 
     label, color = compute_trust(predicted, value, correction_log, ambiguous)
     return value, correction_log, label, color

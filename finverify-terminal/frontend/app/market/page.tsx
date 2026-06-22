@@ -1,14 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Watchlist from "@/components/Watchlist";
 import MetricPanel from "@/components/MetricPanel";
 import MarketContext from "@/components/MarketContext";
-import { createMarketWebSocket, getMarketQuotes, type MarketQuote } from "@/lib/api";
+import EarningsVerification from "@/components/EarningsVerification";
+import { type MarketQuote } from "@/lib/api";
+import { getAllQuotes, isFinnhubConfigured, type FinnhubQuote } from "@/lib/market";
 
 /**
  * Market Mode — Live market data + DVL verification dashboard.
- * 3-column layout: Watchlist (30%) | DVL Analysis (45%) | Market Context (25%)
+ * 4-panel layout with tabbed center:
+ *   Watchlist (25%) | DVL Analysis/Earnings (50%) | Market Context (25%)
+ *
+ * Uses Finnhub for real stock quotes when API key is configured.
+ * Falls back to static demo data otherwise. Never crashes.
  */
 
 const DEFAULT_WATCHLIST = ["AAPL", "TSLA", "JPM", "NVDA", "MSFT", "GS"];
@@ -22,58 +28,68 @@ const FALLBACK_QUOTES: MarketQuote[] = [
   { symbol: "GS", price: 467.20, prev_close: 465.80, change: 1.40, change_pct: 0.30, volume: 2_100_000, market_cap: 155_000_000_000 },
 ];
 
+/* Convert Finnhub quote to the MarketQuote shape used by Watchlist */
+function toMarketQuote(fq: FinnhubQuote): MarketQuote {
+  return {
+    symbol: fq.symbol,
+    price: fq.price,
+    prev_close: fq.prevClose,
+    change: fq.change,
+    change_pct: fq.changePct,
+    volume: 0,
+    market_cap: 0,
+  };
+}
+
+type CenterTab = "metrics" | "earnings";
+
 export default function MarketPage() {
   const [quotes, setQuotes] = useState<MarketQuote[]>(FALLBACK_QUOTES);
   const [selectedSymbol, setSelectedSymbol] = useState("AAPL");
-  const [wsConnected, setWsConnected] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
+  const [isLive, setIsLive] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [centerTab, setCenterTab] = useState<CenterTab>("earnings");
 
-  // Try REST fetch first
-  useEffect(() => {
-    const fetchInitial = async () => {
-      try {
-        const data = await getMarketQuotes(DEFAULT_WATCHLIST);
-        if (data.length > 0) setQuotes(data);
-      } catch {
-        // Keep fallback quotes
+  const fetchQuotes = useCallback(async () => {
+    if (!isFinnhubConfigured()) {
+      setLastUpdated(new Date().toLocaleTimeString("en-US", { hour12: false }));
+      return;
+    }
+    try {
+      const data = await getAllQuotes(DEFAULT_WATCHLIST);
+      if (data.length > 0) {
+        setQuotes(data.map(toMarketQuote));
+        setIsLive(true);
       }
-    };
-    fetchInitial();
+    } catch {
+      // Keep existing data
+    }
+    setLastUpdated(new Date().toLocaleTimeString("en-US", { hour12: false }));
   }, []);
 
-  // WebSocket for live updates
+  // Fetch on mount + refresh every 30 seconds
   useEffect(() => {
-    const ws = createMarketWebSocket(
-      (data) => {
-        setQuotes(data);
-        setWsConnected(true);
-        setConnectionError(false);
-      },
-      () => {
-        setWsConnected(false);
-        setConnectionError(true);
-      },
-    );
-
-    return () => { ws?.close(); };
-  }, []);
+    fetchQuotes();
+    const interval = setInterval(fetchQuotes, 30000);
+    return () => clearInterval(interval);
+  }, [fetchQuotes]);
 
   // Symbol tabs for quick switching
   const symbolTabs = DEFAULT_WATCHLIST;
 
   return (
     <div className="flex flex-col h-[calc(100vh-73px-32px)]">
-      {/* Connection error banner */}
-      {connectionError && (
+      {/* Demo mode banner */}
+      {!isFinnhubConfigured() && (
         <div className="px-4 py-1.5 bg-t-amber/5 border-b border-t-amber/20 flex items-center gap-2">
-          <span className="w-[5px] h-[5px] rounded-full bg-t-amber animate-pulse" />
+          <span className="w-[5px] h-[5px] rounded-full bg-t-amber" />
           <span className="text-[10px] font-mono text-t-amber">
-            MARKET DATA UNAVAILABLE — showing last known values
+            MARKET DATA — DEMO MODE (add FINNHUB_KEY for live data)
           </span>
         </div>
       )}
 
-      {/* Symbol quick-select tabs */}
+      {/* Symbol quick-select tabs + center panel toggle */}
       <div className="flex items-center gap-0 px-2 pt-2 pb-1">
         <span className="text-[9px] font-mono text-t-muted uppercase tracking-wider mr-3">
           ANALYZE:
@@ -94,26 +110,71 @@ export default function MarketPage() {
             {sym}
           </button>
         ))}
+
+        {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Center panel toggle */}
+        <div className="flex items-center gap-0 mr-3">
+          <button
+            onClick={() => setCenterTab("earnings")}
+            className={`
+              px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider
+              transition-all duration-150 border border-t-border/50 rounded-l
+              ${centerTab === "earnings"
+                ? "bg-t-cyan/10 text-t-cyan border-t-cyan/30"
+                : "text-t-muted hover:text-t-secondary hover:bg-white/[0.02]"
+              }
+            `}
+          >
+            🚩 EARNINGS
+          </button>
+          <button
+            onClick={() => setCenterTab("metrics")}
+            className={`
+              px-2.5 py-1 text-[9px] font-mono font-bold uppercase tracking-wider
+              transition-all duration-150 border border-t-border/50 rounded-r -ml-px
+              ${centerTab === "metrics"
+                ? "bg-t-blue/10 text-t-blue border-t-blue/30"
+                : "text-t-muted hover:text-t-secondary hover:bg-white/[0.02]"
+              }
+            `}
+          >
+            📊 METRICS
+          </button>
+        </div>
+
+        {/* Live/Demo indicator */}
         <div className="flex items-center gap-1.5">
-          <span className={`w-[5px] h-[5px] rounded-full ${wsConnected ? "bg-t-green animate-glow-pulse" : "bg-t-muted"}`} />
-          <span className="text-[9px] font-mono text-t-muted">
-            {wsConnected ? "WS CONNECTED" : "POLLING"}
+          <span className={`w-[5px] h-[5px] rounded-full ${isLive ? "bg-t-green animate-glow-pulse" : "bg-t-muted"}`} />
+          <span className={`text-[9px] font-mono ${isLive ? "text-t-green" : "text-t-muted"}`}>
+            {isLive ? "LIVE DATA" : "DEMO DATA"}
           </span>
+          {lastUpdated && (
+            <span className="text-[8px] font-mono text-t-muted ml-2">
+              UPDATED {lastUpdated}
+            </span>
+          )}
         </div>
       </div>
 
       {/* 3-column layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[30%_45%_25%] gap-2 p-2 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[25%_50%_25%] gap-2 p-2 min-h-0">
         {/* Left: Watchlist */}
         <Watchlist
           quotes={quotes}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={setSelectedSymbol}
+          isLive={isLive}
+          lastUpdated={lastUpdated}
         />
 
-        {/* Center: DVL Analysis */}
-        <MetricPanel symbol={selectedSymbol} />
+        {/* Center: DVL Analysis or Earnings Verification */}
+        {centerTab === "metrics" ? (
+          <MetricPanel symbol={selectedSymbol} />
+        ) : (
+          <EarningsVerification symbol={selectedSymbol} />
+        )}
 
         {/* Right: Market Context */}
         <MarketContext />

@@ -6,6 +6,12 @@ interface Props {
   result: QueryResponse | null;
 }
 
+const TRUST_TOOLTIPS: Record<string, string> = {
+  HIGH: "No correction needed — output verified as-is",
+  MEDIUM: "Minor scale correction applied (decimal ↔ percentage)",
+  LOW: "Significant correction applied (delta ≥ 50%) or ambiguous output",
+};
+
 function getTrustStyle(score: string) {
   if (score === "HIGH") return { text: "text-t-green", bg: "trust-high", glow: "glow-green", color: "#00ff88" };
   if (score === "MEDIUM") return { text: "text-t-amber", bg: "trust-medium", glow: "glow-amber", color: "#fbbf24" };
@@ -14,6 +20,7 @@ function getTrustStyle(score: string) {
 
 export default function TrustScore({ result }: Props) {
   const [displayNum, setDisplayNum] = useState<number | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   // Counter animation
   useEffect(() => {
@@ -51,7 +58,33 @@ export default function TrustScore({ result }: Props) {
     <div className={`panel ${s.glow}`}>
       <div className="panel-header">
         <span className="label">VERIFIED OUTPUT</span>
-        <div className={`trust-badge ${s.bg}`}>{result.trust_score}</div>
+        <div className="relative">
+          <div
+            className={`trust-badge ${s.bg} cursor-help`}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            onClick={() => setShowTooltip(!showTooltip)}
+          >
+            {result.trust_score}
+          </div>
+          {/* Trust tooltip */}
+          {showTooltip && (
+            <div className="absolute right-0 top-full mt-1 z-50 w-[240px] p-2 bg-[#1a1a1a] border border-t-border rounded shadow-lg">
+              <div className="space-y-1.5">
+                {Object.entries(TRUST_TOOLTIPS).map(([level, desc]) => {
+                  const isActive = level === result.trust_score;
+                  const color = level === "HIGH" ? "text-t-green" : level === "MEDIUM" ? "text-t-amber" : "text-t-red";
+                  return (
+                    <div key={level} className={`text-[9px] font-mono ${isActive ? "opacity-100" : "opacity-40"}`}>
+                      <span className={`font-bold ${color}`}>{level}:</span>{" "}
+                      <span className="text-t-secondary">{desc}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="px-3 py-2.5">

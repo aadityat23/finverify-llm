@@ -7,6 +7,7 @@ import type { MarketQuote } from "@/lib/api";
 /**
  * Watchlist — Live stock watchlist with sparklines.
  * Left column of Market Mode (30% width).
+ * Shows "LIVE" when receiving real Finnhub data, "DEMO" otherwise.
  */
 
 /* ── Sparkline data generator ── */
@@ -25,15 +26,30 @@ interface WatchlistProps {
   quotes: MarketQuote[];
   selectedSymbol: string;
   onSelectSymbol: (symbol: string) => void;
+  isLive?: boolean;
+  lastUpdated?: string | null;
 }
 
-export default function Watchlist({ quotes, selectedSymbol, onSelectSymbol }: WatchlistProps) {
+export default function Watchlist({ quotes, selectedSymbol, onSelectSymbol, isLive = false, lastUpdated }: WatchlistProps) {
   return (
     <div className="panel flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="panel-header">
-        <span className="label text-t-green">WATCHLIST — LIVE</span>
-        <span className="text-[9px] text-t-muted font-mono">{quotes.length} SYMBOLS</span>
+        <span className="label text-t-green">
+          WATCHLIST — {isLive ? (
+            <span className="text-t-green">LIVE</span>
+          ) : (
+            <span className="text-t-muted">DEMO</span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          {lastUpdated && (
+            <span className="text-[8px] text-t-muted font-mono">
+              UPDATED {lastUpdated}
+            </span>
+          )}
+          <span className="text-[9px] text-t-muted font-mono">{quotes.length} SYMBOLS</span>
+        </div>
       </div>
 
       {/* Column labels */}
@@ -78,7 +94,7 @@ export default function Watchlist({ quotes, selectedSymbol, onSelectSymbol }: Wa
 
               {/* Change */}
               <span className={`text-right tabular-nums ${color}`}>
-                {isUp ? "+" : ""}{q.change.toFixed(2)}
+                {isUp ? "+" : "-"}${Math.abs(q.change).toFixed(2)}
               </span>
 
               {/* Change % */}
@@ -110,6 +126,9 @@ export default function Watchlist({ quotes, selectedSymbol, onSelectSymbol }: Wa
       <div className="px-3 py-1.5 border-t border-t-border/50 flex justify-between text-[9px] font-mono text-t-muted">
         <span>Click symbol for analysis</span>
         <span>
+          {!isLive && (
+            <span className="text-t-amber">DEMO MODE</span>
+          )}
           {quotes.some((q) => q.stale) && (
             <span className="text-t-amber">⚠ STALE DATA</span>
           )}

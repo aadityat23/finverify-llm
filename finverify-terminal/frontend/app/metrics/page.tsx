@@ -1,24 +1,68 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import AblationSection from "@/components/AblationSection";
 import ErrorTaxonomy from "@/components/ErrorTaxonomy";
 
-/* ── Animated counter hook ── */
-function useCounter(target: number, suffix = "", duration = 1200) {
-  const [val, setVal] = useState("0");
+/* ── SSR-safe animated counter (IntersectionObserver-driven) ── */
+function AnimatedCounter({
+  target,
+  suffix = "",
+  duration = 2000,
+}: {
+  target: number;
+  suffix?: string;
+  duration?: number;
+}) {
+  const [value, setValue] = useState(0);
+  const [hasStarted, setHasStarted] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
   useEffect(() => {
-    const start = performance.now();
-    const run = (now: number) => {
-      const p = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      const current = target * eased;
-      setVal(Number.isInteger(target) ? Math.round(current).toString() : current.toFixed(2));
-      if (p < 1) requestAnimationFrame(run);
-      else setVal(Number.isInteger(target) ? target.toString() : target.toFixed(2));
-    };
-    requestAnimationFrame(run);
-  }, [target, duration]);
-  return val + suffix;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasStarted) {
+          setHasStarted(true);
+        }
+      },
+      { threshold: 0.1 },
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [hasStarted]);
+
+  useEffect(() => {
+    if (!hasStarted) return;
+    // target 0 needs no animation
+    if (target === 0) {
+      setValue(0);
+      return;
+    }
+    const steps = 60;
+    const stepDuration = duration / steps;
+    const increment = target / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        setValue(target);
+        clearInterval(timer);
+      } else {
+        setValue(parseFloat(current.toFixed(2)));
+      }
+    }, stepDuration);
+    return () => clearInterval(timer);
+  }, [hasStarted, target, duration]);
+
+  const display = Number.isInteger(target)
+    ? Math.round(value).toString()
+    : value.toFixed(2);
+
+  return (
+    <span ref={ref}>
+      {display}
+      {suffix}
+    </span>
+  );
 }
 
 /* ── Stat cards data ── */
@@ -39,10 +83,11 @@ const ROBUST = [
 ];
 
 function StatCard({ value, suffix, label, sub, accent }: typeof STATS[0]) {
-  const display = useCounter(value, suffix);
   return (
     <div className="panel p-4 relative overflow-hidden" style={{ borderTopColor: accent, borderTopWidth: 2 }}>
-      <div className="text-2xl font-bold font-mono" style={{ color: accent }}>{display}</div>
+      <div className="text-2xl font-bold font-mono" style={{ color: accent }}>
+        <AnimatedCounter target={value} suffix={suffix} />
+      </div>
       <div className="text-[10px] text-t-secondary font-mono uppercase tracking-wider mt-1">{label}</div>
       <div className="text-[9px] text-t-muted font-mono mt-0.5">{sub}</div>
     </div>
@@ -84,14 +129,16 @@ export default function MetricsPage() {
         <div className="flex gap-3 pt-1">
           {[
             { label: "HuggingFace Model", url: "https://huggingface.co/aadi2026/finverify-lora" },
-            { label: "GitHub", url: "#" },
-            { label: "Paper PDF", url: "#" },
+            { label: "GitHub", url: "https://github.com/aadityat23/finverify-llm" },
           ].map((l) => (
             <a key={l.label} href={l.url} target="_blank" rel="noreferrer"
               className="text-[10px] font-mono text-t-blue hover:text-t-cyan transition-colors">
               {l.label} &#8599;
             </a>
           ))}
+          <span className="text-[10px] font-mono text-t-muted cursor-default" title="Paper submitted to FinNLP @ EMNLP 2026 — available on request">
+            Paper &#128274;
+          </span>
         </div>
       </div>
 
@@ -149,14 +196,16 @@ export default function MetricsPage() {
             <div className="text-[11px] font-mono font-bold text-t-amber uppercase tracking-wider">Scale Correction</div>
             <div className="p-3 rounded bg-t-bg border border-t-border font-mono text-[12px] text-center">
               <span className="text-t-red">0.1240</span>
-              <span className="text-t-muted mx-2">&rarr; &times;100 &rarr;</span>
+              <span className="text-t-muted mx-2">&rarr; scale_mul100 &rarr;</span>
               <span className="text-t-green">12.40%</span>
             </div>
             <p className="text-[10px] text-t-muted font-mono leading-relaxed">
               When financial ratios are expressed as decimals (0.12) but the question asks for a percentage, or vice versa. Triggered by keywords: margin, return, yield, growth, change, ratio.
             </p>
             <div className="text-[9px] text-t-muted font-mono border-t border-t-border pt-2">
-              Paper case: CET1 ratio &mdash; predicted 10.935 &rarr; corrected to 0.10935
+              Paper case: Operating margin &mdash; predicted 0.1240 &rarr; scale_mul100 &rarr; 12.40%
+              <br />
+              <span className="text-t-muted/70">(value &lt;1 with ratio keyword &rarr; clearly a decimal needing % conversion)</span>
             </div>
           </div>
 

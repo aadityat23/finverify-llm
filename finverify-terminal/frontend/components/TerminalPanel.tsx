@@ -5,9 +5,10 @@ import type { QueryResponse } from "@/lib/api";
 interface Props {
   result: QueryResponse | null;
   isLoading: boolean;
+  loadingMessage?: string | null;
 }
 
-export default function TerminalPanel({ result, isLoading }: Props) {
+export default function TerminalPanel({ result, isLoading, loadingMessage }: Props) {
   const [animatedVal, setAnimatedVal] = useState<string | null>(null);
   const latency = (1.1 + Math.random() * 1.2).toFixed(1);
 
@@ -55,10 +56,15 @@ export default function TerminalPanel({ result, isLoading }: Props) {
 
         {/* Loading */}
         {isLoading && (
-          <div className="flex items-center justify-center gap-2 py-3">
+          <div className="flex flex-col items-center justify-center gap-1.5 py-3">
             <span className="text-t-amber text-[10px] font-mono animate-pulse">
               Querying model...
             </span>
+            {loadingMessage && (
+              <span className="text-t-muted text-[9px] font-mono text-center max-w-[300px] leading-relaxed">
+                {loadingMessage}
+              </span>
+            )}
           </div>
         )}
 

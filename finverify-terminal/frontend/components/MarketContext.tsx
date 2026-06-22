@@ -6,7 +6,14 @@ import { getMarketIndices, type MarketQuote } from "@/lib/api";
 /**
  * MarketContext — Right column showing index data + sector performance.
  * Right column of Market Mode (25% width).
+ * Uses fallback data immediately so it never shows a stuck loading state.
  */
+
+const FALLBACK_INDICES: MarketQuote[] = [
+  { symbol: "SPY", display_name: "S&P 500", price: 5287.14, prev_close: 5245.00, change: 42.14, change_pct: 0.80, volume: 0, market_cap: 0 },
+  { symbol: "QQQ", display_name: "NASDAQ", price: 18431.28, prev_close: 18212.80, change: 218.48, change_pct: 1.20, volume: 0, market_cap: 0 },
+  { symbol: "^VIX", display_name: "VIX", price: 14.32, prev_close: 14.38, change: -0.06, change_pct: -0.42, volume: 0, market_cap: 0 },
+];
 
 const SECTORS = [
   { name: "Financials", change: 1.2 },
@@ -17,8 +24,7 @@ const SECTORS = [
 ];
 
 export default function MarketContext() {
-  const [indices, setIndices] = useState<MarketQuote[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [indices, setIndices] = useState<MarketQuote[]>(FALLBACK_INDICES);
 
   useEffect(() => {
     const fetchIndices = async () => {
@@ -26,9 +32,7 @@ export default function MarketContext() {
         const data = await getMarketIndices();
         if (data.length > 0) setIndices(data);
       } catch {
-        // Keep empty → fallback display
-      } finally {
-        setLoading(false);
+        // Keep fallback data — no loading state needed
       }
     };
     fetchIndices();
@@ -42,7 +46,7 @@ export default function MarketContext() {
       <div className="panel-header">
         <span className="label text-t-purple">MARKET CONTEXT</span>
         <span className="text-[9px] text-t-muted font-mono">
-          {loading ? "LOADING..." : "LIVE"}
+          INDICES
         </span>
       </div>
 
@@ -81,14 +85,6 @@ export default function MarketContext() {
               </div>
             );
           })}
-
-          {indices.length === 0 && !loading && (
-            <div className="panel p-4 text-center">
-              <div className="text-t-muted text-[10px] font-mono">
-                INDEX DATA UNAVAILABLE
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Sector Performance */}

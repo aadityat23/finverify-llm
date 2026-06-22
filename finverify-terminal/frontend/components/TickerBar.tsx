@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { createMarketWebSocket, getMarketIndices, type MarketQuote } from "@/lib/api";
+import { getAllQuotes, isFinnhubConfigured, type FinnhubQuote } from "@/lib/market";
+import type { MarketQuote } from "@/lib/api";
 
 /**
- * TickerBar — Scrolling marquee showing live stock quotes + index data.
- * Connects to WebSocket /ws/market for real-time updates.
- * Falls back to static data if backend is unreachable.
+ * TickerBar — Scrolling marquee showing live stock quotes.
+ * Uses Finnhub for real data when API key is configured.
+ * Falls back to static data if Finnhub key is missing or API fails.
  */
+
+const TICKER_SYMBOLS = ["AAPL", "TSLA", "JPM", "NVDA", "MSFT", "GS"];
 
 const FALLBACK_TICKERS: MarketQuote[] = [
   { symbol: "AAPL", price: 192.34, prev_close: 190.13, change: 2.21, change_pct: 1.16, volume: 0, market_cap: 0 },
@@ -18,54 +21,57 @@ const FALLBACK_TICKERS: MarketQuote[] = [
   { symbol: "GS", price: 467.20, prev_close: 465.80, change: 1.40, change_pct: 0.30, volume: 0, market_cap: 0 },
 ];
 
-const FALLBACK_INDICES: MarketQuote[] = [
-  { symbol: "SPY", display_name: "S&P 500", price: 5287.14, prev_close: 5245.00, change: 42.14, change_pct: 0.80, volume: 0, market_cap: 0 },
-  { symbol: "QQQ", display_name: "NASDAQ", price: 18431.28, prev_close: 18212.80, change: 218.48, change_pct: 1.20, volume: 0, market_cap: 0 },
-  { symbol: "^VIX", display_name: "VIX", price: 14.32, prev_close: 14.38, change: -0.06, change_pct: -0.42, volume: 0, market_cap: 0 },
-];
+interface TickerItem {
+  symbol: string;
+  price: number;
+  change: number;
+  changePct: number;
+}
+
+function finnhubToTicker(q: FinnhubQuote): TickerItem {
+  return { symbol: q.symbol, price: q.price, change: q.change, changePct: q.changePct };
+}
+
+function fallbackToTicker(q: MarketQuote): TickerItem {
+  return { symbol: q.symbol, price: q.price, change: q.change, changePct: q.change_pct };
+}
 
 export default function TickerBar() {
-  const [quotes, setQuotes] = useState<MarketQuote[]>(FALLBACK_TICKERS);
-  const [indices, setIndices] = useState<MarketQuote[]>(FALLBACK_INDICES);
-  const [connected, setConnected] = useState(false);
+  const [tickers, setTickers] = useState<TickerItem[]>(FALLBACK_TICKERS.map(fallbackToTicker));
+  const [isLive, setIsLive] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // WebSocket for live quotes
+  // Fetch real quotes from Finnhub
   useEffect(() => {
-    const ws = createMarketWebSocket(
-      (data) => {
-        setQuotes(data);
-        setConnected(true);
-      },
-      () => setConnected(false),
-    );
-    return () => { ws?.close(); };
-  }, []);
+    if (!isFinnhubConfigured()) return;
 
-  // Fetch indices on mount + every 30s
-  useEffect(() => {
-    const fetchIndices = async () => {
+    const fetchQuotes = async () => {
       try {
-        const data = await getMarketIndices();
-        if (data.length > 0) setIndices(data);
-      } catch { /* keep fallback */ }
+        const quotes = await getAllQuotes(TICKER_SYMBOLS);
+        if (quotes.length > 0) {
+          setTickers(quotes.map(finnhubToTicker));
+          setIsLive(true);
+        }
+      } catch {
+        // Keep existing data
+      }
     };
-    fetchIndices();
-    const interval = setInterval(fetchIndices, 30000);
+
+    fetchQuotes();
+    // Refresh every 30s (Finnhub free tier rate limit)
+    const interval = setInterval(fetchQuotes, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const allItems = [...indices, ...quotes];
-
   return (
     <div className="h-[32px] flex items-center bg-[#0c0c0c] border-b border-t-border/50 overflow-hidden relative">
-      {/* Connection indicator */}
+      {/* Data source indicator */}
       <div className="flex items-center gap-1.5 pl-3 pr-3 border-r border-t-border/30 shrink-0">
         <span
-          className={`w-[5px] h-[5px] rounded-full ${connected ? "bg-t-green animate-glow-pulse" : "bg-t-muted"}`}
+          className={`w-[5px] h-[5px] rounded-full ${isLive ? "bg-t-green animate-glow-pulse" : "bg-t-muted"}`}
         />
-        <span className="text-[9px] font-mono text-t-muted">
-          {connected ? "LIVE" : "STATIC"}
+        <span className={`text-[8px] font-mono font-bold ${isLive ? "text-t-green" : "text-t-muted"}`}>
+          {isLive ? "LIVE" : "STATIC"}
         </span>
       </div>
 
@@ -73,19 +79,18 @@ export default function TickerBar() {
       <div className="flex-1 overflow-hidden" ref={scrollRef}>
         <div className="ticker-scroll flex items-center gap-5 whitespace-nowrap px-4">
           {/* Render items twice for seamless scroll loop */}
-          {[...allItems, ...allItems].map((item, i) => {
-            const isUp = item.change_pct >= 0;
+          {[...tickers, ...tickers].map((item, i) => {
+            const isUp = item.changePct >= 0;
             const arrow = isUp ? "▲" : "▼";
             const color = isUp ? "text-t-green" : "text-t-red";
-            const name = item.display_name || item.symbol;
             return (
               <span key={`${item.symbol}-${i}`} className="flex items-center gap-1.5 text-[10px] font-mono tracking-wide">
-                <span className="text-t-muted">{name}</span>
+                <span className="text-t-muted">{item.symbol}</span>
                 <span className="text-t-primary">
-                  {item.price >= 1000 ? item.price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : item.price.toFixed(2)}
+                  ${item.price >= 1000 ? item.price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : item.price.toFixed(2)}
                 </span>
                 <span className={color}>
-                  {arrow} {isUp ? "+" : ""}{item.change_pct.toFixed(1)}%
+                  {arrow} {Math.abs(item.changePct).toFixed(2)}%
                 </span>
                 <span className="text-t-muted/30 mx-1">│</span>
               </span>
