@@ -629,25 +629,26 @@ async def fcg_verify(request: Request):
     """
     Run Financial Constraint Graph verification on a set of financial values.
 
+    Accepts raw LLM metric names — normalizer maps them to canonical keys
+    before constraints run. E.g. "net revenues" → "revenue".
+
     Expects JSON body:
     {
         "values": {
-            "revenue": 394328,
-            "cogs": 223546,
+            "net revenues": 394328,
+            "cost of goods sold": 223546,
             "gross_profit": 170782,
-            "operating_expenses": 54847,
-            "operating_income": 115935,
             ...
-        }
+        },
+        "normalize": true  // optional, default true
     }
 
-    Returns constraint results: passed, violations, and overall trust.
-    This is the second-pass verification layer — runs AFTER DVL single-number correction.
-    Pipeline: LLM Output → DVL (single-number) → FCG (relationships) → Trust Score
+    Pipeline: LLM Output → DVL (single-number) → Normalizer → FCG → Trust Score
     """
     try:
         body = await request.json()
         values = body.get("values", {})
+        should_normalize = body.get("normalize", True)
 
         if not values:
             raise HTTPException(status_code=400, detail="'values' dict required with financial metrics")
@@ -663,19 +664,68 @@ async def fcg_verify(request: Request):
         if not float_values:
             raise HTTPException(status_code=400, detail="No valid numeric values found")
 
-        from fcg.constraint_engine import fcg
-        result = fcg.verify(float_values)
+        # Normalize metric names (Session 1B)
+        normalized_values = float_values
+        normalization_map = {}
+        if should_normalize:
+            from fcg.normalizer import normalize_values_dict, normalize_metric_name
+            normalized_values = normalize_values_dict(float_values)
+            for raw_name in float_values:
+                canonical = normalize_metric_name(raw_name)
+                if canonical and canonical != raw_name:
+                    normalization_map[raw_name] = canonical
 
-        return {
+        from fcg.constraint_engine import fcg
+        result = fcg.verify(normalized_values)
+
+        response = {
             "status": "ok",
             "input_count": len(float_values),
+            "normalized_count": len(normalized_values),
             "constraint_result": fcg.to_dict(result),
         }
+        if normalization_map:
+            response["normalization_map"] = normalization_map
+
+        return response
     except HTTPException:
         raise
     except Exception as e:
         logger.error("FCG verification failed: %s", e)
         raise HTTPException(status_code=500, detail=f"FCG verification failed: {e}")
+
+
+@app.post("/v1/fcg/normalize")
+async def fcg_normalize(request: Request):
+    """
+    Normalize raw metric names without running constraints.
+    Useful for debugging how the normalizer maps LLM output names.
+
+    Expects: { "names": ["net revenues", "cost of goods sold", "EBIT", ...] }
+    """
+    try:
+        body = await request.json()
+        names = body.get("names", [])
+
+        if not names:
+            raise HTTPException(status_code=400, detail="'names' list required")
+
+        from fcg.normalizer import normalize_metric_name, get_all_canonical_names
+        results = {}
+        for name in names:
+            results[name] = normalize_metric_name(name)
+
+        return {
+            "status": "ok",
+            "mapped": {k: v for k, v in results.items() if v is not None},
+            "unmapped": [k for k, v in results.items() if v is None],
+            "supported_metrics": get_all_canonical_names(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("FCG normalize failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Normalization failed: {e}")
 
 
 @app.get("/v1/fcg/constraints")
