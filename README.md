@@ -165,7 +165,7 @@ User Query
                          + correction log + trust
 ```
 
-This is the core v1 verification pipeline. The backend additionally includes the Financial Constraint Graph, SEC EDGAR and earnings-transcript ingestion, and a retrieval (RAG) layer — see [Repository structure](#repository-structure) below.
+This is the **core v1 verification pipeline**; it intentionally focuses on the DVL path and does not show the Financial Constraint Graph, SEC EDGAR/earnings-transcript ingestion, or RAG subsystems. Those are documented in the System Components table and [Repository structure](#repository-structure) below.
 
 ## Repository structure
 
@@ -200,6 +200,10 @@ finverify-llm/
 | DVL engine | `backend/app/dvl.py` | Scale/sign/magnitude correction with audit logging |
 | Query classifier | `backend/app/router.py` | Routes numerical vs advisory queries |
 | Market layer | `backend/app/market.py` | Live yfinance data, DVL-verified financial metrics |
+| Financial Constraint Graph | `backend/fcg/constraint_engine.py` | Multi-number accounting-identity and ratio-bound checks |
+| SEC EDGAR ingestion | `backend/ingestion/sec_edgar.py` | XBRL/fallback ingestion of 10-K/10-Q fundamentals |
+| Earnings transcript verification | `backend/ingestion/transcripts.py` | Regex extraction and DVL verification of earnings-call claims |
+| RAG pipeline | `backend/rag/pipeline.py` | Pinecone vector + keyword-overlap fallback retrieval |
 | WebSocket server | `backend/app/main.py` | Real-time market data push (5s interval) |
 | Terminal UI | `frontend/app/page.tsx` | Terminal-style query interface, three-panel layout |
 | Market mode | `frontend/app/market/page.tsx` | Live watchlist, verified metric cards, sparklines |
@@ -243,9 +247,12 @@ Negative results: CoT prompting −9.0pp, CoT fine-tuning −12.0pp, cross-doc R
 | GET | `/market/indices` | S&P 500, NASDAQ, VIX |
 | GET | `/market/verified-metrics?symbol=AAPL&metric=profit_margin` | DVL-verified metric |
 | GET | `/market/all-metrics?symbol=AAPL` | All five metrics for a symbol |
+| POST, GET | `/v1/fcg/*` | FCG endpoints: verify, normalize, list constraints |
+| POST, GET | `/v1/rag/*` | RAG endpoints: query, stats, seed |
+| GET, POST, DELETE | `/v1/history/*` | User query-history persistence |
 | WS | `/ws/market` | Real-time market data stream |
 
-The backend also exposes `/v1/*` routes for the Financial Constraint Graph, RAG, ingestion, and query history. Endpoint-by-endpoint documentation for these is an open contribution opportunity — see [Contributing](#contributing).
+The backend also exposes `/v1/fundamentals/{ticker}`, `/v1/earnings/{ticker}`, and `/v1/ingest/*` routes for on-demand SEC and transcript ingestion. Endpoint-by-endpoint documentation for these is an open contribution opportunity — see [Contributing](#contributing).
 
 ## Research
 
