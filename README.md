@@ -261,17 +261,18 @@ The backend also exposes `/v1/*` routes for the Financial Constraint Graph, RAG,
 
 ## Roadmap
 
-FinVerify is early-stage and the roadmap is public. Current and planned work is tracked on [GitHub Milestones](https://github.com/aadityat23/finverify-llm/milestones).
+Development is tracked through GitHub Milestones.
 
-Current focus:
+Current priorities include:
 
-- Consolidating the DVL, which today exists as three separate implementations (backend, SDK, frontend fallback), into a single source of truth
-- Expanding test coverage beyond the DVL engine — the constraint graph, ingestion, RAG, and frontend components currently have little or no coverage
-- Adding CI so tests run on every pull request
-- Enforcing the FCG's documented pipeline order (DVL → normalize → constraint check), which the live API does not currently apply
-- Reproducing the paper's FinQA result directly from the shipped backend, not only the research notebooks
+- Consolidating the verification engine
+- Expanding automated test coverage
+- Improving API stability
+- Extending benchmark coverage
+- Enhancing developer experience
+- Strengthening documentation
 
-Longer-term ideas — a standalone FCG package, a shared-cache backend for horizontal scaling, a broader cross-model evaluation — are tracked as issues rather than commitments.
+Future work includes broader model evaluation, improved deployment tooling, and additional verification methods.
 
 ## Contributing
 
