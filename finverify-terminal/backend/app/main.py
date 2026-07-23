@@ -114,9 +114,14 @@ _raw_token = os.getenv("HF_TOKEN", None)
 HF_TOKEN: str | None = _raw_token if _raw_token else None
 LLM_AVAILABLE: bool = HF_TOKEN is not None
 
-logger.info("HF_TOKEN %s — LLM mode: %s",
-            "detected" if LLM_AVAILABLE else "NOT SET",
-            "full" if LLM_AVAILABLE else "dvl-only")
+if LLM_AVAILABLE:
+    logger.info("HF_TOKEN detected — LLM mode: full (model: %s)", HF_MODEL)
+else:
+    logger.warning(
+        "⚠ LLM_AVAILABLE=False — HF_TOKEN env var is missing or empty. "
+        "All /query requests will return LLM-offline response. "
+        "Set HF_TOKEN as a Space secret to enable inference."
+    )
 
 
 async def call_hf_inference(question: str) -> str:
@@ -130,13 +135,42 @@ async def call_hf_inference(question: str) -> str:
         },
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(HF_API_URL, json=payload, headers=headers)
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(HF_API_URL, json=payload, headers=headers)
+    except Exception as e:
+        logger.error(
+            "call_hf_inference NETWORK ERROR for question='%s': %s (type: %s)",
+            question[:80], e, type(e).__name__,
+        )
+        raise
+
+    if resp.status_code == 401:
+        logger.error(
+            "call_hf_inference AUTH ERROR (401): HF_TOKEN is invalid or lacks "
+            "inference permissions. Check https://huggingface.co/settings/tokens"
+        )
+    elif resp.status_code == 404:
+        logger.error(
+            "call_hf_inference MODEL NOT FOUND (404): %s is not available via "
+            "serverless Inference API. LoRA adapters require a merged model or "
+            "dedicated Inference Endpoint.", HF_MODEL,
+        )
+    elif resp.status_code == 503:
+        logger.warning(
+            "call_hf_inference COLD START (503): model %s is loading. "
+            "Response: %s", HF_MODEL, resp.text[:200],
+        )
+    elif resp.status_code != 200:
+        logger.error(
+            "call_hf_inference UNEXPECTED ERROR (%d) for question='%s': %s",
+            resp.status_code, question[:80], resp.text[:300],
+        )
 
     if resp.status_code != 200:
         raise HTTPException(
             status_code=resp.status_code,
-            detail=f"HuggingFace API error: {resp.text}",
+            detail=f"HuggingFace API error ({resp.status_code}): {resp.text[:200]}",
         )
 
     data = resp.json()
@@ -150,17 +184,26 @@ async def call_hf_inference(question: str) -> str:
 # DVL Routes
 # ---------------------------------------------------------------------------
 
-@app.post("/query")
+@app.post("/query", response_model=QueryResponse)
 async def query_endpoint(req: QueryRequest):
     """Full pipeline: classify -> LLM -> parse -> DVL -> response."""
 
     # --- If no HF token, return graceful offline response ---------------
     if not LLM_AVAILABLE:
-        return {
-            "error": "LLM offline",
-            "mode": "dvl_only",
-            "message": "DVL verification available. LLM inference requires API token.",
-        }
+        logger.warning("Rejecting /query — LLM_AVAILABLE=False (question: '%s')", req.question[:80])
+        return QueryResponse(
+            question=req.question,
+            raw_text="LLM inference unavailable — HuggingFace API token not configured. "
+                     "DVL verification is available via the /verify endpoint.",
+            raw_number=None,
+            verified_number=None,
+            correction_log=[],
+            trust_score="N/A",
+            trust_color="#888888",
+            display_value="LLM Offline",
+            mode="dvl_only",
+            verified=False,
+        )
 
     mode = classify_query(req.question)
 

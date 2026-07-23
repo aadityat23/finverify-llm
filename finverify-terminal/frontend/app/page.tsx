@@ -6,20 +6,11 @@ import VerificationLog from "@/components/VerificationLog";
 import TrustScore from "@/components/TrustScore";
 import QueryInterpretation from "@/components/QueryInterpretation";
 import DVLReport from "@/components/DVLReport";
-import { verifyNumber, queryLLM, saveToHistory, type QueryResponse } from "@/lib/api";
+import { verifyNumber, queryLLM, type QueryResponse } from "@/lib/api";
 import { useConnection } from "@/lib/connection";
 import { addToHistory } from "@/lib/history";
 
-// Safe Clerk hook — returns null when Clerk isn't configured
-function useSafeUser() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const clerk = require("@clerk/nextjs");
-    return clerk.useUser();
-  } catch {
-    return { user: null, isLoaded: true };
-  }
-}
+
 
 /* ── Client-side DVL fallback ── */
 const RATIO_KW = ["ratio","percentage","percent","rate","margin","return","yield","growth","change","increase","decrease","loss"];
@@ -31,6 +22,17 @@ function isAdvisoryQuery(q: string): boolean {
   return ADVISORY_KW.some((kw) => q.toLowerCase().includes(kw));
 }
 
+/*
+ * Client-side DVL fallback — mirrors backend full_verify() for demo/offline use.
+ *
+ * KNOWN DRIFT vs backend dvl.py full_verify():
+ *   - Missing: sign correction (requires ground truth → also skipped on backend without `actual`)
+ *   - Missing: magnitude correction (backend fires heuristic for ratio Qs with extreme values)
+ *   - Trust scoring diverged: clientDVL assigns fixed MEDIUM for any scale correction,
+ *     while backend uses delta-based compute_trust() which would assign LOW for ~100× changes.
+ *   - This is acceptable since clientDVL only runs for known demo cases with hardcoded numbers.
+ *   - If a custom-query fallback path is ever reintroduced, these should be synchronized.
+ */
 function clientDVL(question: string, raw: number): QueryResponse {
   const isRatio = RATIO_KW.some((kw) => question.toLowerCase().includes(kw));
   let value = raw;
@@ -178,7 +180,6 @@ export default function HomePage() {
   const [failureCaseOpen, setFailureCaseOpen] = useState(false);
   const [advisoryDetected, setAdvisoryDetected] = useState(false);
   const { backendOnline } = useConnection();
-  const { user } = useSafeUser();
 
   const handleSubmit = useCallback(async (question: string) => {
     setAdvisoryDetected(false);
@@ -212,24 +213,31 @@ export default function HomePage() {
         setLoadingMessage("QUERYING LLM MODEL — this may take 15-30s on first request (cold start)");
         try {
           res = await queryLLM(question);
+          // Check if backend returned an LLM-offline response
+          if (res.mode === "dvl_only" && res.trust_score === "N/A") {
+            setError("LLM is currently unavailable. The backend is online but the LLM inference token is not configured. Please try again later.");
+            setIsLoading(false);
+            setLoadingMessage(null);
+            return;
+          }
         } catch {
-          // LLM failed → fall back to DVL with random number
-          const fallbackNum = parseFloat((Math.random() * 50 - 10).toFixed(4));
-          res = clientDVL(question, fallbackNum);
+          // LLM call failed → show clean error, don't fake a result
+          setError("LLM is currently unavailable. Please try again shortly.");
+          setIsLoading(false);
+          setLoadingMessage(null);
+          return;
         }
       } else {
-        // Backend offline → client-side DVL with random number
-        const fallbackNum = parseFloat((Math.random() * 50 - 10).toFixed(4));
-        res = clientDVL(question, fallbackNum);
+        // Backend offline → show clean error for custom queries
+        setError("Backend is offline. Custom queries require a connection to the FinVerify API. Try a demo query instead.");
+        setIsLoading(false);
+        setLoadingMessage(null);
+        return;
       }
       setResult(res);
       setHistory((h) => [res, ...h].slice(0, 20));
       // Persist to dashboard history (localStorage)
       try { addToHistory(res); } catch {}
-      // Persist to Supabase if authenticated
-      if (user?.id) {
-        try { saveToHistory(user.id, res); } catch {}
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -279,6 +287,79 @@ export default function HomePage() {
   const hasResult = result !== null;
 
   return (
+    <>
+    {/* ── Hero Section ── */}
+    <section id="hero" className="px-4 pt-4 pb-2 max-w-[1800px] mx-auto w-full">
+      <div className="panel p-5 relative overflow-hidden" style={{ borderColor: "rgba(0,255,136,0.12)" }}>
+        <div className="absolute inset-0 bg-gradient-to-br from-t-green/[0.03] via-transparent to-t-cyan/[0.02] pointer-events-none" />
+        <div className="relative z-10">
+          <h1 className="text-[15px] font-mono font-bold text-t-green tracking-wider mb-2">
+            FINVERIFY — DETERMINISTIC VERIFICATION LAYER
+          </h1>
+          <p className="text-[11px] font-mono text-t-secondary leading-relaxed max-w-2xl mb-1.5">
+            Post-inference verification for financial LLM outputs — catches scale, sign,
+            and magnitude errors before they reach production.
+          </p>
+          <p className="text-[10px] font-mono text-t-muted mb-4">
+            <span className="text-t-green">●</span> Numerical formatting corrections
+            <span className="mx-2 text-t-border">|</span>
+            <span className="text-t-cyan">●</span> SEC EDGAR fundamentals
+            <span className="mx-2 text-t-border">|</span>
+            <span className="text-t-amber">●</span> Earnings transcript verification
+          </p>
+          <a
+            id="cta-early-access"
+            href="mailto:aaditya@finverify.dev?subject=Early%20Access%20Request"
+            className="inline-flex items-center gap-2 px-4 py-2 text-[10px] font-mono font-bold uppercase tracking-wider text-t-green border border-t-green/30 rounded hover:bg-t-green/5 hover:border-t-green/50 transition-all"
+          >
+            REQUEST EARLY ACCESS →
+          </a>
+        </div>
+      </div>
+    </section>
+
+    {/* ── Capabilities Section ── */}
+    <section id="capabilities" className="px-4 pb-2 max-w-[1800px] mx-auto w-full">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        {/* DVL Numeric Correction */}
+        <div className="panel p-4 border-l-2 border-t-green">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-t-green text-[11px]">✓</span>
+            <span className="text-[10px] font-mono font-bold text-t-green uppercase tracking-wider">DVL Numeric Correction</span>
+          </div>
+          <p className="text-[10px] font-mono text-t-secondary leading-relaxed mb-2">
+            Three-stage deterministic pipeline: scale correction, sign correction, magnitude correction.
+            42× accuracy improvement on correctable errors (FinQA, n=873).
+          </p>
+          <span className="text-[9px] font-mono text-t-muted">↓ Demo below</span>
+        </div>
+        {/* SEC EDGAR Fundamentals */}
+        <div className="panel p-4 border-l-2 border-t-cyan">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-t-cyan text-[11px]">✓</span>
+            <span className="text-[10px] font-mono font-bold text-t-cyan uppercase tracking-wider">SEC EDGAR Fundamentals</span>
+          </div>
+          <p className="text-[10px] font-mono text-t-secondary leading-relaxed mb-2">
+            Pull DVL-verified financial metrics directly from SEC filings.
+            Revenue, margins, EPS — sourced and corrected automatically.
+          </p>
+          <a href="/metrics" className="text-[9px] font-mono text-t-cyan hover:underline">→ View on Research page</a>
+        </div>
+        {/* Earnings Transcript Verification */}
+        <div className="panel p-4 border-l-2 border-t-amber">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-t-amber text-[11px]">✓</span>
+            <span className="text-[10px] font-mono font-bold text-t-amber uppercase tracking-wider">Earnings Verification</span>
+          </div>
+          <p className="text-[10px] font-mono text-t-secondary leading-relaxed mb-2">
+            Verify numeric claims in CEO/CFO earnings call transcripts.
+            Red-flag analysis catches ambiguous or inconsistent figures.
+          </p>
+          <a href="/metrics" className="text-[9px] font-mono text-t-amber hover:underline">→ View on Research page</a>
+        </div>
+      </div>
+    </section>
+
     <div className="flex-1 grid grid-cols-1 lg:grid-cols-[32%_42%_26%] gap-2 p-2 max-w-[1800px] mx-auto w-full h-[calc(100vh-73px)]">
       {/* ── Left: Query Input ── */}
       <div className="flex flex-col min-h-0">
@@ -412,6 +493,16 @@ export default function HomePage() {
                 independently verify the underlying calculation
               </span>
             </div>
+            {/* Enhanced key insight — surfaced from ErrorTaxonomy */}
+            <div className="mt-2 pt-2 border-t border-t-border/30">
+              <div className="text-[9px] font-mono text-t-secondary leading-relaxed">
+                <span className="text-t-red font-bold">73.1%</span> of LLM numerical errors are
+                multi-step reasoning failures that DVL cannot correct —
+                only <span className="text-t-green font-bold">26.9%</span> are formatting-level
+                errors (scale, sign, magnitude) where DVL achieves{" "}
+                <span className="text-t-green">42× accuracy improvement on correctable errors</span>.
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -517,5 +608,6 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

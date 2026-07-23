@@ -3,10 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   verifyNumber,
-  saveToHistory,
-  getHistory,
-  clearHistoryRemote,
-  type HistoryRecord,
 } from "@/lib/api";
 import {
   type HistoryEntry,
@@ -15,42 +11,14 @@ import {
   saveHistoryLocal,
 } from "@/lib/history";
 
-// Safe Clerk hook — returns fallback when Clerk isn't configured
-function useSafeUser() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const clerk = require("@clerk/nextjs");
-    return clerk.useUser();
-  } catch {
-    return { user: null, isLoaded: true };
-  }
-}
-
 /**
- * Dashboard — Session 12A
+ * Dashboard
  * Shows query history with DVL outcomes.
  * Filter by trust level, re-run past queries.
- * Requires authentication (protected by middleware).
- *
- * When Supabase is configured, history persists server-side.
- * Falls back to localStorage when Supabase is unavailable.
+ * Uses localStorage for persistence (Clerk auth stripped, Session 2.3).
  */
 
-/* ── Convert remote record to local entry ── */
-function remoteToLocal(r: HistoryRecord): HistoryEntry {
-  return {
-    id: r.id || Date.now().toString(36),
-    question: r.question,
-    raw_number: r.raw_value,
-    verified_number: r.verified_value,
-    trust_score: r.trust,
-    trust_color:
-      r.trust === "HIGH" ? "#00ff88" : r.trust === "MEDIUM" ? "#fbbf24" : "#f87171",
-    correction_log: r.correction_log,
-    display_value: r.display_value,
-    timestamp: r.timestamp || new Date().toISOString(),
-  };
-}
+
 
 /* ── Trust badge ── */
 function TrustBadge({ trust }: { trust: string }) {
@@ -206,33 +174,14 @@ function StatsRow({ history }: { history: HistoryEntry[] }) {
 
 /* ── Main ── */
 export default function DashboardPage() {
-  const { user, isLoaded } = useSafeUser();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [filter, setFilter] = useState<TrustFilter>("ALL");
   const [rerunning, setRerunning] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<"local" | "syncing" | "synced">("local");
 
-  // Load history — try Supabase first if user is authenticated, fall back to localStorage
+  // Load history from localStorage
   useEffect(() => {
-    async function load() {
-      if (user?.id) {
-        setSyncStatus("syncing");
-        try {
-          const remote = await getHistory(user.id, 50);
-          if (remote.length > 0) {
-            setHistory(remote.map(remoteToLocal));
-            setSyncStatus("synced");
-            return;
-          }
-        } catch {
-          /* fall through to localStorage */
-        }
-      }
-      setHistory(loadHistory());
-      setSyncStatus("local");
-    }
-    load();
-  }, [user?.id]);
+    setHistory(loadHistory());
+  }, []);
 
   const filtered =
     filter === "ALL" ? history : history.filter((h) => h.trust_score === filter);
@@ -259,36 +208,23 @@ export default function DashboardPage() {
           saveHistoryLocal(updated);
           return updated;
         });
-        // Also persist to Supabase if authenticated
-        if (user?.id) {
-          try { await saveToHistory(user.id, res); } catch { /* silent */ }
-        }
       } catch {
         /* silently fail */
       } finally {
         setRerunning(false);
       }
     },
-    [user?.id]
+    []
   );
 
-  const handleClearHistory = async () => {
+  const handleClearHistory = () => {
     if (confirm("Clear all query history?")) {
       saveHistoryLocal([]);
       setHistory([]);
-      if (user?.id) {
-        try { await clearHistoryRemote(user.id); } catch { /* silent */ }
-      }
     }
   };
 
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-t-muted font-mono text-sm animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -299,13 +235,7 @@ export default function DashboardPage() {
             DVL DASHBOARD
           </h1>
           <p className="text-[10px] font-mono text-t-muted mt-0.5">
-            {user?.firstName ? `Welcome, ${user.firstName}` : "Query History & Analytics"} — {history.length} queries
-            {syncStatus === "synced" && (
-              <span className="text-t-green ml-2">● SYNCED</span>
-            )}
-            {syncStatus === "syncing" && (
-              <span className="text-t-amber ml-2 animate-pulse">● SYNCING</span>
-            )}
+            Query History &amp; Analytics — {history.length} queries
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -384,9 +314,7 @@ export default function DashboardPage() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-[9px] font-mono text-t-muted">
-        {syncStatus === "synced"
-          ? "History synced to cloud via Supabase • Available across devices"
-          : "History stored locally in browser • Sign in to sync across devices"}
+        History stored locally in browser
       </div>
     </div>
   );

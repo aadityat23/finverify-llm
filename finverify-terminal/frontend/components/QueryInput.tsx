@@ -130,13 +130,16 @@ export default function QueryInput({ onSubmit, onRunDemo, isLoading, demoStatus 
             border: "1px solid rgba(251,191,36,0.15)",
           }}
         >
-          {demoStatus ? demoStatus : "▶ RUN DEMO"}
+          {demoStatus ? demoStatus : "▶ RUN DEMO — FIXED INPUTS"}
         </button>
 
         {/* Sample queries */}
         <div>
           <div className="text-[9px] text-t-muted font-mono uppercase tracking-wider mb-1.5">
-            Sample Queries
+            Demo Queries{" "}
+            <span className="ml-1 text-[8px] text-t-amber border border-t-amber/20 bg-t-amber/[0.04] px-1 py-0.5 rounded">
+              FIXED INPUT
+            </span>
           </div>
           <div className="flex flex-wrap gap-1">
             {SAMPLES.map((q, i) => (
