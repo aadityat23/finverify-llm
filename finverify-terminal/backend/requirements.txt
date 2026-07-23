@@ -14,3 +14,7 @@ lxml
 pinecone
 sentence-transformers
 supabase
+
+# Test dependencies
+pytest
+pytest-asyncio
