@@ -295,7 +295,7 @@ Please also read the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 FinVerify was created and is currently maintained by [Aaditya Thokal](mailto:aaditya.thokal24@gmail.com), Universal College of Engineering, Mumbai.
 
-The project is early enough that this list is short. If you contribute a merged PR, you belong here — open a PR adding yourself once it lands.
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for everyone who has helped build FinVerify.
 
 ## License
 
