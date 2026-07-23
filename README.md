@@ -1,14 +1,24 @@
-```markdown
+<div align="center">
+
 # FinVerify
 
-Verification-first financial AI. FinVerify reduces numerical hallucination in LLM output through deterministic correction, rather than relying on prompting or scale alone.
+**Verification-first financial AI. Deterministic correction instead of prompting or scale.**
 
-[Live Demo](#) · [Documentation](finverify-terminal/README.md) · [Paper](#) · [Model](https://huggingface.co/aadi2026/finverify-lora)
+[Live Demo](#) &nbsp;·&nbsp; [Documentation](finverify-terminal/README.md) &nbsp;·&nbsp; [Paper](#) &nbsp;·&nbsp; [Model](https://huggingface.co/aadi2026/finverify-lora)
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](finverify-terminal/backend/requirements.txt)
 [![Next.js 14](https://img.shields.io/badge/next.js-14-black.svg)](finverify-terminal/frontend/package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+[![Discussions](https://img.shields.io/badge/GitHub-Discussions-informational.svg)](https://github.com/aadityat23/finverify-llm/discussions)
+
+</div>
+
+---
+
+### Contents
+
+[The problem](#the-problem) · [Results](#results) · [What is the DVL](#what-is-the-dvl) · [Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Architecture](#architecture) · [Repository structure](#repository-structure) · [Benchmarks](#benchmarks) · [API reference](#api-reference) · [Research](#research) · [Roadmap](#roadmap) · [Contributing](#contributing) · [Community](#community) · [Contributors](#contributors) · [License](#license)
 
 ---
 
@@ -30,7 +40,7 @@ FinQA dev set, n=873, 95% bootstrap CI:
 | +Document Context | 24.00% | [21.2, 26.9] | +23.0pp |
 | +DVL v1 | 32.00% | [29.0, 35.1] | +8.0pp |
 | +QLoRA Fine-tuning | 38.50% | [35.4, 41.7] | +6.5pp |
-| +DVL v2 (final) | 42.61% | [39.5, 45.7] | +4.1pp |
+| **+DVL v2 (final)** | **42.61%** | **[39.5, 45.7]** | **+4.1pp** |
 
 Negative results: CoT prompting −9.0pp, CoT fine-tuning −12.0pp, cross-doc RAG −7.5pp.
 
@@ -52,17 +62,23 @@ Design constraint: the DVL only fires on formatting-level errors. It does not at
 
 ## Features
 
-**Verification Layer (DVL)** — scale, sign, and magnitude correction on single numerical claims, with a full audit log per correction.
+**Verification Layer (DVL)**
+Scale, sign, and magnitude correction on single numerical claims, with a full audit log per correction.
 
-**Financial Constraint Graph (FCG)** — checks relationships between multiple reported figures against accounting identities (gross profit = revenue − COGS, balance-sheet equation, EPS consistency), catching internally inconsistent output that single-number verification misses.
+**Financial Constraint Graph (FCG)**
+Checks relationships between multiple reported figures against accounting identities (gross profit = revenue − COGS, balance-sheet equation, EPS consistency), catching internally inconsistent output that single-number verification misses.
 
-**Market Mode** — live market data via Yahoo Finance. Derived metrics (P/E, margins, growth) run through the same DVL verification used for LLM output. Raw prices are never corrected, since they are ground truth by definition.
+**Market Mode**
+Live market data via Yahoo Finance. Derived metrics (P/E, margins, growth) run through the same DVL verification used for LLM output. Raw prices are never corrected, since they are ground truth by definition.
 
-**Trust Engine** — every verified value carries a HIGH / MEDIUM / LOW label, computed from the relative delta between raw and corrected values, not just a correction count.
+**Trust Engine**
+Every verified value carries a HIGH / MEDIUM / LOW label, computed from the relative delta between raw and corrected values, not just a correction count.
 
-**FinVerifyBench** — a synthetic diagnostic benchmark built to isolate formatting-level errors from reasoning errors, used to validate DVL behavior independent of any one model's reasoning quality.
+**FinVerifyBench**
+A synthetic diagnostic benchmark built to isolate formatting-level errors from reasoning errors, used to validate DVL behavior independent of any one model's reasoning quality.
 
-**Audit logs** — structured, per-correction logs (rule, input, output) for every value the DVL touches.
+**Audit logs**
+Structured, per-correction logs (rule, input, output) for every value the DVL touches.
 
 ## Screenshots
 
@@ -149,7 +165,7 @@ User Query
                          + correction log + trust
 ```
 
-This is the core v1 verification pipeline. The backend additionally includes the Financial Constraint Graph, SEC EDGAR and earnings-transcript ingestion, and a retrieval (RAG) layer — see Repository Structure below.
+This is the core v1 verification pipeline. The backend additionally includes the Financial Constraint Graph, SEC EDGAR and earnings-transcript ingestion, and a retrieval (RAG) layer — see [Repository structure](#repository-structure) below.
 
 ## Repository structure
 
@@ -199,7 +215,7 @@ FinQA dev set, n=873, 95% bootstrap CI:
 | +Document Context | 24.00% | [21.2, 26.9] | +23.0pp |
 | +DVL v1 | 32.00% | [29.0, 35.1] | +8.0pp |
 | +QLoRA Fine-tuning | 38.50% | [35.4, 41.7] | +6.5pp |
-| +DVL v2 (final) | 42.61% | [39.5, 45.7] | +4.1pp |
+| **+DVL v2 (final)** | **42.61%** | **[39.5, 45.7]** | **+4.1pp** |
 
 Negative results: CoT prompting −9.0pp, CoT fine-tuning −12.0pp, cross-doc RAG −7.5pp.
 
@@ -229,19 +245,19 @@ Negative results: CoT prompting −9.0pp, CoT fine-tuning −12.0pp, cross-doc R
 | GET | `/market/all-metrics?symbol=AAPL` | All five metrics for a symbol |
 | WS | `/ws/market` | Real-time market data stream |
 
-The backend also exposes `/v1/*` routes for the Financial Constraint Graph, RAG, ingestion, and query history. Endpoint-by-endpoint documentation for these is an open contribution opportunity — see Contributing.
+The backend also exposes `/v1/*` routes for the Financial Constraint Graph, RAG, ingestion, and query history. Endpoint-by-endpoint documentation for these is an open contribution opportunity — see [Contributing](#contributing).
 
 ## Research
 
-Paper: *Modular Verification Outperforms Chain-of-Thought Reasoning in Small Financial LLMs: A Systematic Ablation Study on Numerical Hallucination Reduction*
+**Paper** — *Modular Verification Outperforms Chain-of-Thought Reasoning in Small Financial LLMs: A Systematic Ablation Study on Numerical Hallucination Reduction*
 
-Submitted to: FinNLP @ EMNLP 2026 / IEEE Access
+**Submitted to** — FinNLP @ EMNLP 2026 / IEEE Access
 
-Author: Aaditya Thokal, Universal College of Engineering, Mumbai — aaditya.thokal24@gmail.com
+**Author** — Aaditya Thokal, Universal College of Engineering, Mumbai — [aaditya.thokal24@gmail.com](mailto:aaditya.thokal24@gmail.com)
 
-Model: [aadi2026/finverify-lora](https://huggingface.co/aadi2026/finverify-lora), Mistral-7B + QLoRA, trained on 2,000 FinQA examples.
+**Model** — [aadi2026/finverify-lora](https://huggingface.co/aadi2026/finverify-lora), Mistral-7B + QLoRA, trained on 2,000 FinQA examples
 
-Dataset: evaluated on the [FinQA](https://finqasite.github.io/) dev set (n=873). FinVerifyBench, a synthetic diagnostic benchmark, is used to isolate formatting-level errors from reasoning errors.
+**Dataset** — evaluated on the [FinQA](https://finqasite.github.io/) dev set (n=873). FinVerifyBench, a synthetic diagnostic benchmark, is used to isolate formatting-level errors from reasoning errors.
 
 ## Roadmap
 
@@ -267,10 +283,12 @@ Please also read the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Community
 
-- Website: [Live Demo](#)
-- [GitHub Discussions](https://github.com/aadityat23/finverify-llm/discussions) — design questions, feedback, and "is this worth doing" conversations
-- [Issues](https://github.com/aadityat23/finverify-llm/issues) — bugs and tracked work
-- [CONTRIBUTING.md](./CONTRIBUTING.md) — setup and contribution guide
+| | |
+|---|---|
+| Website | [Live Demo](#) |
+| Discussions | [GitHub Discussions](https://github.com/aadityat23/finverify-llm/discussions) — design questions, feedback, "is this worth doing" conversations |
+| Issues | [GitHub Issues](https://github.com/aadityat23/finverify-llm/issues) — bugs and tracked work |
+| Contributing guide | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 
 ## Contributors
 
@@ -281,4 +299,11 @@ The project is early enough that this list is short. If you contribute a merged 
 ## License
 
 Apache License 2.0. See [LICENSE](./LICENSE).
-```
+
+---
+
+<div align="center">
+
+If FinVerify is useful to you, consider starring the repository.
+
+</div>
